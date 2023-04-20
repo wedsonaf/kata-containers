@@ -703,10 +703,12 @@ fn parse_mount_flags_and_options(options_vec: Vec<&str>) -> (MsFlags, String) {
                     }
                 }
                 None => {
-                    if !options.is_empty() {
-                        options.push_str(format!(",{}", opt).as_str());
-                    } else {
-                        options.push_str(opt.to_string().as_str());
+                    if !opt.starts_with("kata.") {
+                        if !options.is_empty() {
+                            options.push_str(&format!(",{}", opt));
+                        } else {
+                            options.push_str(opt);
+                        }
                     }
                 }
             };
