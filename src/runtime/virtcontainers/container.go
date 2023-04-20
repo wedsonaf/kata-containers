@@ -1216,11 +1216,11 @@ func (c *Container) hotplugDrive(ctx context.Context) error {
 		if c.sandbox.config.ServiceOffload && c.rootFs.Source == "" {
 			return nil
 		}
-		dev, err = getDeviceForPath(c.rootFs.Source)
+		dev, err = getDeviceForPath(c.rootFs.Options, c.rootFs.Source)
 		// there is no "rootfs" dir on block device backed rootfs
 		c.rootfsSuffix = ""
 	} else {
-		dev, err = getDeviceForPath(c.rootFs.Target)
+		dev, err = getDeviceForPath([]string{}, c.rootFs.Target)
 	}
 
 	if err == errMountPointNotFound {
@@ -1237,12 +1237,12 @@ func (c *Container) hotplugDrive(ctx context.Context) error {
 		"mount-point":  dev.mountPoint,
 	}).Info("device details")
 
-	isDM, err := checkStorageDriver(dev.major, dev.minor)
+	isDevice, err := checkStorageDriver(dev.major, dev.minor)
 	if err != nil {
 		return err
 	}
 
-	if !isDM {
+	if !isDevice {
 		return nil
 	}
 
@@ -1283,7 +1283,21 @@ func (c *Container) plugDevice(ctx context.Context, devicePath string) error {
 		return fmt.Errorf("stat %q failed: %v", devicePath, err)
 	}
 
-	if !c.checkBlockDeviceSupport(ctx) || stat.Mode&unix.S_IFBLK != unix.S_IFBLK {
+	var major, minor int64
+	switch stat.Mode & unix.S_IFMT {
+	case unix.S_IFBLK:
+		if !c.checkBlockDeviceSupport(ctx) {
+			return nil
+		}
+
+		major = int64(unix.Major(uint64(stat.Rdev)))
+		minor = int64(unix.Minor(uint64(stat.Rdev)))
+
+	case unix.S_IFREG:
+		major = -1
+		minor = 0
+
+	default:
 		return nil
 	}
 
@@ -1291,8 +1305,8 @@ func (c *Container) plugDevice(ctx context.Context, devicePath string) error {
 		HostPath:      devicePath,
 		ContainerPath: filepath.Join(kataGuestSharedDir(), c.id),
 		DevType:       "b",
-		Major:         int64(unix.Major(uint64(stat.Rdev))),
-		Minor:         int64(unix.Minor(uint64(stat.Rdev))),
+		Major:         major,
+		Minor:         minor,
 	})
 	if err != nil {
 		return fmt.Errorf("device manager failed to create rootfs device for %q: %v", devicePath, err)

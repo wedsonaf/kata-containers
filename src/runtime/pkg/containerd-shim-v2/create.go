@@ -23,6 +23,7 @@ import (
 	taskAPI "github.com/containerd/containerd/runtime/v2/task"
 	"github.com/containerd/typeurl"
 	"github.com/kata-containers/kata-containers/src/runtime/pkg/utils"
+	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/rootless"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -273,6 +274,11 @@ func checkAndMount(s *service, r *taskAPI.CreateTaskRequest) (bool, error) {
 		if katautils.IsBlockDevice(m.Source) && !s.config.HypervisorConfig.DisableBlockDeviceUse {
 			return false, nil
 		}
+
+		if virtcontainers.IsFileBlockDevice(m.Options, m.Source) {
+			return false, nil
+		}
+
 		if m.Type == vc.NydusRootFSType {
 			// if kata + nydus, do not mount
 			return false, nil

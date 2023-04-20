@@ -453,9 +453,10 @@ func (f *FilesystemShare) ShareRootFilesystem(ctx context.Context, c *Container)
 		// So we have to build the bundle path explicitly.
 		rootfsStorage.MountPoint = filepath.Join(kataGuestSharedDir(), c.id)
 		rootfsStorage.Fstype = c.state.Fstype
+		rootfsStorage.Options = c.rootFs.Options
 
 		if c.state.Fstype == "xfs" {
-			rootfsStorage.Options = []string{"nouuid"}
+			rootfsStorage.Options = append(rootfsStorage.Options, "nouuid")
 		}
 
 		// Ensure container mount destination exists

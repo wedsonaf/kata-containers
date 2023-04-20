@@ -115,12 +115,20 @@ var errMountPointNotFound = errors.New("Mount point not found")
 //		minor : minor(/dev/sda1)
 //		mountPoint:
 
-func getDeviceForPath(path string) (device, error) {
+func getDeviceForPath(opts []string, path string) (device, error) {
 	var devMajor int
 	var devMinor int
 
 	if path == "" {
 		return device{}, fmt.Errorf("Path cannot be empty")
+	}
+
+	if IsFileBlockDevice(opts, path) {
+		return device{
+			major:      -1,
+			minor:      0,
+			mountPoint: path,
+		}, nil
 	}
 
 	stat := syscall.Stat_t{}
@@ -194,7 +202,17 @@ func getDeviceForPath(path string) (device, error) {
 
 var blockFormatTemplate = "/sys/dev/block/%d:%d/dm"
 
-var checkStorageDriver = isDeviceMapper
+var checkStorageDriver = isStorage
+
+// isStorage checks if the device with the major and minor numbers is a block device.
+func isStorage(major, minor int) (bool, error) {
+	// For guest-only device (e.g., file-backed block devices), the major number is -1.
+	if major == -1 {
+		return true, nil
+	}
+
+	return isDeviceMapper(major, minor)
+}
 
 // isDeviceMapper checks if the device with the major and minor numbers is a devicemapper block device
 func isDeviceMapper(major, minor int) (bool, error) {
@@ -404,4 +422,27 @@ func isWatchableMount(path string) bool {
 	}
 
 	return false
+}
+
+func IsFileBlockDevice(opts []string, filePath string) bool {
+	// Loook for the option that indicates this.
+	found := false
+	for _, v := range opts {
+		if v == "kata.block_device=file" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return false
+	}
+
+	// Check that the source is indeed a file.
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return false
+	}
+
+	return fi.Mode().IsRegular()
 }
